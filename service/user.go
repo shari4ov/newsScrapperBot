@@ -34,7 +34,7 @@ func CreateNewsService() {
 }
 func WriteToDB(n News) error {
 	db := storage.OpenConnection()
-	sqlStatement := `INSERT INTO news (title,news_id) VALUES($1,$3);`
+	sqlStatement := `INSERT INTO news (title,news_id) VALUES($1,$2);`
 	_, err := db.Exec(sqlStatement, n.title, n.id)
 	if err != nil {
 		panic(err)
