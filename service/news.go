@@ -5,6 +5,7 @@ import (
 	"home/storage"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -22,7 +23,9 @@ func CreateNewsService() {
 		defer response.Body.Close()
 		doc, err := goquery.NewDocumentFromReader(response.Body)
 		checkError(err)
-		scrapePageData(doc)
+
+		go scrapePageData(doc)
+		time.Sleep(5 * time.Second)
 		href, _ := doc.Find(".pagination a.more").Attr("href")
 		if href == "" {
 			break
@@ -32,13 +35,17 @@ func CreateNewsService() {
 		}
 	}
 }
-func WriteToDB(n News) error {
+func WriteToDB(ch chan News, n News) error {
+	ch <- n
+	fmt.Println(n)
 	db := storage.OpenConnection()
 	sqlStatement := `INSERT INTO news (title,news_id) VALUES($1,$2);`
 	_, err := db.Exec(sqlStatement, n.title, n.id)
 	if err != nil {
 		panic(err)
 	}
+	close(ch)
+	defer db.Close()
 	return nil
 
 }
@@ -67,6 +74,9 @@ func scrapePageData(doc *goquery.Document) {
 			title: text,
 			id:    id,
 		}
-		WriteToDB(scrapedData)
+		ch := make(chan News, 5)
+		go WriteToDB(ch, scrapedData)
+		time.Sleep(5 * time.Second)
 	})
+
 }
