@@ -1,56 +1,72 @@
 package service
 
 import (
-	dto "home/DTO"
-	"home/model"
+	"fmt"
 	"home/storage"
-	"log"
+	"net/http"
+	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/PuerkitoBio/goquery"
 )
 
-func GetUserByID(id int) (model.User, error) {
-	sqlStatement := `SELECT * FROM users WHERE id=$1;`
-	db := storage.OpenConnection()
-	row := db.QueryRow(sqlStatement, id)
-	user := model.User{}
-	err := row.Scan(&user.Id, &user.Name, &user.Surname)
-	if err != nil {
-		return user, err
-	}
-	return user, nil
+type News struct {
+	title string
+	id    string
 }
-func GetRepoUsers() ([]model.User, error) {
-	db := storage.OpenConnection()
-	row, err := db.Query("SELECT * FROM users")
-	if err != nil {
-		return nil, err
-	}
-	defer row.Close()
-	users := []model.User{}
-	for row.Next() {
-		var user model.User
-		if err := row.Scan(&user.Id, &user.Name, &user.Surname); err != nil {
-			return users, err
+
+var url string = "https://www.oxu.az"
+
+func CreateNewsService() {
+	for {
+		response := getHtml(url)
+		defer response.Body.Close()
+		doc, err := goquery.NewDocumentFromReader(response.Body)
+		checkError(err)
+		scrapePageData(doc)
+		href, _ := doc.Find(".pagination a.more").Attr("href")
+		if href == "" {
+			break
+		} else {
+			url = "https://www.oxu.az"
+			url = fmt.Sprintf("%v%v", url, href)
 		}
-		users = append(users, user)
 	}
-	if err = row.Err(); err != nil {
-		return users, err
-	}
-	return users, nil
 }
-func CreateUser(c echo.Context) error {
-	user := dto.UserDTO{}
-	if err := c.Bind(&user); err != nil {
-		log.Fatal(err)
-		return err
-	}
+func WriteToDB(n News) error {
 	db := storage.OpenConnection()
-	sqlStatement := `INSERT INTO users (id,name,surname) VALUES($1,$2,$3);`
-	_, err := db.Exec(sqlStatement, 3, user.Name, user.Surname)
+	sqlStatement := `INSERT INTO news (title,news_id) VALUES($1,$3);`
+	_, err := db.Exec(sqlStatement, n.title, n.id)
 	if err != nil {
 		panic(err)
 	}
 	return nil
+
+}
+func getHtml(url string) *http.Response {
+	response, err := http.Get(url)
+	checkError(err)
+	if response.StatusCode > 400 {
+		fmt.Println("Status code", response.StatusCode)
+	}
+	return response
+}
+func checkError(error error) {
+	if error != nil {
+		fmt.Println(error)
+	}
+}
+func scrapePageData(doc *goquery.Document) {
+	doc.Find(".news-i").Each(func(i int, s *goquery.Selection) {
+		text := s.Find(".title").Text()
+		url, _ := s.Find(".news-i-inner").Attr("href")
+
+		spl := strings.Split(url, "/")
+		id := spl[len(spl)-1]
+
+		scrapedData := News{
+			title: text,
+			id:    id,
+		}
+		WriteToDB(scrapedData)
+	})
 }
