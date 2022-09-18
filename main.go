@@ -5,6 +5,7 @@ import (
 	"home/storage"
 	"net/http"
 
+	"github.com/jasonlvhit/gocron"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -17,7 +18,8 @@ func main() {
 
 	e.GET("/", hello)
 
-	e.GET("/create/news", controller.CreateNews)
+	gocron.Every(10).Seconds().Do(controller.CreateNews)
+	<-gocron.Start()
 	e.Logger.Fatal(e.Start(":8081"))
 }
 func hello(c echo.Context) error {
