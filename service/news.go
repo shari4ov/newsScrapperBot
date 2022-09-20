@@ -20,7 +20,6 @@ var url string = "https://www.oxu.az"
 func CreateNewsService() {
 	Id, href := getLastNews()
 	response := getHtml(url)
-	defer response.Body.Close()
 	doc, err := goquery.NewDocumentFromReader(response.Body)
 	checkError(err)
 	if href != "" {
@@ -28,6 +27,7 @@ func CreateNewsService() {
 	} else {
 		go scrapePageDataForZero(doc)
 	}
+	defer response.Body.Close()
 }
 func WriteToDB(ch chan News) error {
 	news := <-ch
@@ -37,7 +37,7 @@ func WriteToDB(ch chan News) error {
 	if news.title != "" && news.id != "" {
 		_, err := db.Exec(sqlStatement, news.title, news.id, news.href)
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
 		}
 		close(ch)
 		defer db.Close()
@@ -58,8 +58,7 @@ func checkError(error error) {
 	}
 }
 func scrapePageDataForZero(doc *goquery.Document) {
-
-	doc.Find(".news-list").Find(".pagination").PrevAll().EachWithBreak(func(i int, s *goquery.Selection) bool {
+	doc.Find(".news-list").Find(".pagination").PrevAll().Each(func(i int, s *goquery.Selection) {
 		text := s.Text()
 		fmt.Println(text)
 		url, _ := s.Find(".news-i-inner").Attr("href")
@@ -70,36 +69,35 @@ func scrapePageDataForZero(doc *goquery.Document) {
 			id:    id,
 			href:  url,
 		}
-		ch := make(chan News, 1)
+		ch := make(chan News, 10)
 		go func() {
 			ch <- scrapedData
 		}()
 		WriteToDB(ch)
-		return true
 	})
 }
 func scrapePageDataFrom(doc *goquery.Document, href string, Id string) {
-
-	doc.Find(fmt.Sprintf(".news-i-inner[href='%v']", href)).Parent().PrevAll().Filter(".news-i").EachWithBreak(func(i int, s *goquery.Selection) bool {
-		fmt.Println(s.Text())
+	doc.Find(fmt.Sprintf(".news-i-inner[href='%v']", href)).Parent().PrevAll().Filter(".news-i").Each(func(i int, s *goquery.Selection) {
 		text := s.Text()
 		url, _ := s.Find(".news-i-inner").Attr("href")
 		spl := strings.Split(url, "/")
 		id := spl[len(spl)-1]
+		fmt.Println("sdsdsd", text)
+		if text == "" {
+			fmt.Println("SS")
+		}
 		if Id != id {
 			scrapedData := News{
 				title: text,
 				id:    id,
 				href:  url,
 			}
-			ch := make(chan News, 1)
+			ch := make(chan News, 10)
 			go func() {
 				ch <- scrapedData
 			}()
 			WriteToDB(ch)
-			return true
 		}
-		return false
 	})
 }
 func getLastNews() (string, string) {

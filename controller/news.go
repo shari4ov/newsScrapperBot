@@ -5,6 +5,5 @@ import (
 )
 
 func CreateNews() {
-
 	service.CreateNewsService()
 }
