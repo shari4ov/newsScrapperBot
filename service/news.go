@@ -34,9 +34,12 @@ func CreateNewsService() {
 	defer response.Body.Close()
 }
 func WriteToRM(ch chan News) error {
+	err := godotenv.Load("local.env")
+	checkError(err)
+	url := os.Getenv("AMQPURL")
 	news := <-ch
 	fmt.Println(news)
-	conn, err := amqp091.Dial("amqp://admin:admin@localhost:5672")
+	conn, err := amqp091.Dial(url)
 	checkError(err)
 	amqpChannel, err := conn.Channel()
 	checkError(err)
@@ -127,7 +130,10 @@ func scrapePageDataFrom(doc *goquery.Document, href string, Id string) {
 	})
 }
 func getLastNews() (newsChannel chan LastNews) {
-	conn, err := amqp091.Dial("amqp://admin:admin@localhost:5672")
+	err := godotenv.Load("local.env")
+	checkError(err)
+	url := os.Getenv("AMQPURL")
+	conn, err := amqp091.Dial(url)
 	checkError(err)
 	defer conn.Close()
 	ch, err := conn.Channel()
