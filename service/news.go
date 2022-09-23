@@ -3,28 +3,23 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	dto "home/DTO"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/joho/godotenv"
 	"github.com/rabbitmq/amqp091-go"
 )
 
-type News struct {
-	Title string `json:"title"`
-	Id    string `json:"id"`
-	Href  string `json:"href"`
-}
-type LastNews struct {
-	Title   string `json:"title"`
-	Id      string `json:"id"`
-	Href    string `json:"href"`
-	News_id string `json:"news_id"`
-}
-
-var url string = "https://www.oxu.az"
+type News dto.News
+type LastNews dto.LastNews
 
 func CreateNewsService() {
+	err := godotenv.Load("local.env")
+	checkError(err)
+	url := os.Getenv("URL")
 	news := <-getLastNews()
 	fmt.Println("Id: ", news.News_id)
 	fmt.Println("Href: ", news.Href)
@@ -42,9 +37,9 @@ func WriteToRM(ch chan News) error {
 	news := <-ch
 	fmt.Println(news)
 	conn, err := amqp091.Dial("amqp://admin:admin@localhost:5672")
-	fmt.Println(err)
+	checkError(err)
 	amqpChannel, err := conn.Channel()
-	fmt.Println(err)
+	checkError(err)
 	defer conn.Close()
 	defer amqpChannel.Close()
 	q, error := amqpChannel.QueueDeclare(
@@ -55,9 +50,7 @@ func WriteToRM(ch chan News) error {
 		false,
 		nil,
 	)
-	if error != nil {
-		fmt.Println(error)
-	}
+	checkError(error)
 	amqpChannel.QueueBind(
 		q.Name,
 		"",
@@ -134,12 +127,11 @@ func scrapePageDataFrom(doc *goquery.Document, href string, Id string) {
 	})
 }
 func getLastNews() (newsChannel chan LastNews) {
-
 	conn, err := amqp091.Dial("amqp://admin:admin@localhost:5672")
-	handleError(err, "Line 87")
+	checkError(err)
 	defer conn.Close()
 	ch, err := conn.Channel()
-	handleError(err, "Line 92")
+	checkError(err)
 	defer ch.Close()
 	q, err := ch.QueueDeclare(
 		"lastNews.queue",
@@ -149,7 +141,7 @@ func getLastNews() (newsChannel chan LastNews) {
 		false,
 		nil,
 	)
-	handleError(err, "Line 104")
+	checkError(err)
 	msgs, err := ch.Consume(
 		q.Name,
 		"",
@@ -159,7 +151,7 @@ func getLastNews() (newsChannel chan LastNews) {
 		false,
 		nil,
 	)
-	handleError(err, "Line 111")
+	checkError(err)
 	channel := make(chan LastNews, 1)
 	go func() {
 		for d := range msgs {
@@ -169,11 +161,6 @@ func getLastNews() (newsChannel chan LastNews) {
 	return channel
 }
 
-func handleError(err error, msg string) {
-	if err != nil {
-		fmt.Println(err, msg)
-	}
-}
 func JsonToObject(jsonData []byte) LastNews {
 	var n LastNews
 	_ = json.Unmarshal(jsonData, &n)
