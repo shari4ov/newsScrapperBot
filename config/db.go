@@ -6,7 +6,7 @@ const (
 	DBUser     = "kenan"
 	DBPassword = "2001"
 	DBName     = "goecho"
-	DBHost     = "10.114.0.14"
+	DBHost     = "10.128.0.3"
 	DBPort     = "5432"
 	DBType     = "postgres"
 )

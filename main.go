@@ -7,8 +7,6 @@ import (
 )
 
 func main() {
-
 	gocron.Every(10).Seconds().Do(controller.CreateNews)
 	<-gocron.Start()
-
 }
